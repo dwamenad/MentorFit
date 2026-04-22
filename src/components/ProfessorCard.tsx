@@ -1,21 +1,25 @@
 import type { MouseEvent } from 'react';
 import { Professor, MatchResult } from '@/types';
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, GitCompareArrows, Trash2 } from 'lucide-react';
+import { Bookmark, BookmarkCheck, CheckCircle2, GitCompareArrows, Trash2 } from 'lucide-react';
 
 export function ProfessorCard({ 
   professor, 
   match, 
   rank,
   isSelected, 
+  isShortlisted,
   onSelect,
+  onToggleShortlist,
   onDelete
 }: { 
   professor: Professor, 
   match: MatchResult,
   rank: number,
   isSelected: boolean,
+  isShortlisted: boolean,
   onSelect: () => void,
+  onToggleShortlist: () => void,
   onDelete: (e: MouseEvent) => void
 }) {
   return (
@@ -43,6 +47,11 @@ export function ProfessorCard({
               {professor.profileOrigin === 'discovery' ? (
                 <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-tight">
                   Academic Dataset
+                </Badge>
+              ) : null}
+              {isShortlisted ? (
+                <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tight border-accent/40 bg-accent/10 text-accent">
+                  Shortlisted
                 </Badge>
               ) : null}
               {professor.sourceType ? (
@@ -77,21 +86,38 @@ export function ProfessorCard({
           <span className="text-[11px] text-muted-foreground">
             {isSelected ? 'Selected for comparison' : 'Select this card to compare'}
           </span>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelect();
-            }}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-              isSelected
-                ? 'border-accent bg-accent/10 text-accent'
-                : 'border-border text-muted-foreground hover:border-accent/40 hover:text-foreground'
-            }`}
-          >
-            {isSelected ? <CheckCircle2 className="w-3.5 h-3.5" /> : <GitCompareArrows className="w-3.5 h-3.5" />}
-            {isSelected ? 'Selected' : 'Compare'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleShortlist();
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                isShortlisted
+                  ? 'border-accent/30 bg-accent/10 text-accent'
+                  : 'border-border text-muted-foreground hover:border-accent/40 hover:text-foreground'
+              }`}
+            >
+              {isShortlisted ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+              {isShortlisted ? 'Shortlisted' : 'Shortlist'}
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect();
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                isSelected
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border text-muted-foreground hover:border-accent/40 hover:text-foreground'
+              }`}
+            >
+              {isSelected ? <CheckCircle2 className="w-3.5 h-3.5" /> : <GitCompareArrows className="w-3.5 h-3.5" />}
+              {isSelected ? 'Selected' : 'Compare'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
