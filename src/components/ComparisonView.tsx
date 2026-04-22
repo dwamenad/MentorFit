@@ -9,7 +9,7 @@ export function ComparisonView({ professors, matches }: { professors: Professor[
   if (professors.length === 0) {
     return (
       <div className="text-center py-20 bg-card rounded-lg border border-dashed border-border">
-        <p className="text-muted-foreground text-sm">Select up to 4 professors from the rankings to compare them side-by-side.</p>
+        <p className="text-muted-foreground text-sm">Go back to Ranked Results, use Compare on at least two professor cards, then open Compare Selected.</p>
       </div>
     );
   }
@@ -27,6 +27,12 @@ export function ComparisonView({ professors, matches }: { professors: Professor[
 
   return (
     <div className="space-y-8">
+      {professors.length === 1 ? (
+        <div className="rounded-lg border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
+          Comparison works best with at least two professors. Add one more from Ranked Results to make the side-by-side view useful.
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {professors.map(prof => {
           const match = matches.find(m => m.professorId === prof.id);
@@ -37,7 +43,7 @@ export function ComparisonView({ professors, matches }: { professors: Professor[
                 <RadarChartComponent match={match} size={160} />
               </div>
               <h4 className="font-bold text-base">{prof.fullName}</h4>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">{prof.institution}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">{[prof.institution, prof.country].filter(Boolean).join(' • ')}</p>
               <div className="mt-4 text-3xl font-extrabold text-accent leading-none">{match.overallScore}</div>
               <p className="text-[9px] uppercase font-bold text-muted-foreground tracking-tighter mt-1">Overall Match</p>
               <p className="text-xs text-muted-foreground mt-3">{Math.round(match.confidence * 100)}% confidence</p>

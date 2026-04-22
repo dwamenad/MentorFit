@@ -1,9 +1,10 @@
-import React, { startTransition, useMemo, useState } from 'react';
-import { StudentProfile, Professor, MatchResult } from '@/types';
+import { startTransition, useMemo, useState, type ReactNode } from 'react';
+import { DiscoveryMeta, DiscoverySourceMeta, StudentProfile, Professor, MatchResult } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, GraduationCap, LayoutDashboard, Users, Settings, Loader2, Link as LinkIcon, RotateCcw } from 'lucide-react';
+import { getCountryLabel } from '@/lib/countries';
+import { Plus, Search, GraduationCap, LayoutDashboard, Users, Settings, Loader2, Link as LinkIcon, RotateCcw, RefreshCw } from 'lucide-react';
 import { ProfessorCard } from './ProfessorCard';
 import { ComparisonView } from './ComparisonView';
 import { RadarChartComponent } from './RadarChart';
@@ -22,6 +23,9 @@ export function Dashboard({
   setProfessors,
   matches,
   setMatches,
+  discoveryMeta,
+  isDiscoveringRecommendations,
+  onRefreshRecommendations,
   onEditProfile,
   onLogout,
 }: {
@@ -30,6 +34,9 @@ export function Dashboard({
   setProfessors: (p: Professor[]) => void;
   matches: MatchResult[];
   setMatches: (m: MatchResult[]) => void;
+  discoveryMeta: DiscoveryMeta | null;
+  isDiscoveringRecommendations: boolean;
+  onRefreshRecommendations: () => void;
   onEditProfile: () => void;
   onLogout: () => void;
 }) {
@@ -39,6 +46,7 @@ export function Dashboard({
   const [selectedProfIds, setSelectedProfIds] = useState<string[]>([]);
 
   const sortedMatches = useMemo(() => [...matches].sort((a, b) => b.overallScore - a.overallScore), [matches]);
+  const selectedCount = selectedProfIds.length;
 
   const handleIngest = async () => {
     if (!url) {
@@ -92,7 +100,10 @@ export function Dashboard({
     toast.success('Professor removed from shortlist.');
   };
 
-  const detailMatch = sortedMatches[0];
+  const detailProfessorId = selectedProfIds[selectedProfIds.length - 1] ?? sortedMatches[0]?.professorId;
+  const detailMatch = detailProfessorId
+    ? sortedMatches.find((match) => match.professorId === detailProfessorId) ?? sortedMatches[0]
+    : undefined;
   const detailProfessor = detailMatch ? professors.find((professor) => professor.id === detailMatch.professorId) : null;
 
   return (
@@ -109,23 +120,59 @@ export function Dashboard({
           </div>
           <ThemeToggle className="border-primary-foreground/15 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/15" />
           <Button
+            onClick={onEditProfile}
+            disabled={isDiscoveringRecommendations || isIngesting}
+            size="sm"
+            variant="outline"
+            className="border-primary-foreground/15 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/15"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Edit Profile
+          </Button>
+          <Button
+            onClick={onRefreshRecommendations}
+            disabled={isDiscoveringRecommendations || isIngesting}
+            size="sm"
+            variant="outline"
+            className="border-primary-foreground/15 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/15"
+          >
+            {isDiscoveringRecommendations ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Refresh Pool
+          </Button>
+          <Button
             onClick={handleIngest}
-            disabled={isIngesting || !url}
+            disabled={isIngesting || isDiscoveringRecommendations || !url}
             size="sm"
             className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
           >
             {isIngesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-            Add Profile
+            Add URL
           </Button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-[280px] bg-card border-r border-border p-5 flex flex-col gap-6 flex-shrink-0">
+        <aside className="w-[280px] overflow-y-auto bg-card border-r border-border p-5 flex flex-col gap-6 flex-shrink-0">
           <div>
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Current Focus</h2>
-            <div className="p-3 border border-border rounded-lg bg-background text-sm leading-relaxed">
-              <span className="font-semibold">Interests:</span> {studentProfile.researchInterests.slice(0, 120)}
+            <div className="p-3 border border-border rounded-lg bg-background text-sm leading-relaxed space-y-3">
+              <div>
+                <span className="font-semibold">Interests:</span> {studentProfile.researchInterests.slice(0, 120)}
+              </div>
+              <div>
+                <p className="font-semibold mb-2">Countries:</p>
+                {studentProfile.preferredCountries.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {studentProfile.preferredCountries.map((country) => (
+                      <Badge key={country} variant="outline" className="text-[10px] font-bold uppercase tracking-tight">
+                        {getCountryLabel(country)}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No country filter applied.</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -140,10 +187,32 @@ export function Dashboard({
           </div>
 
           <div>
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">How Ingest Works</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">How Ranking Works</h2>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              MentorFit fetches lightweight public metadata from the pasted link, infers a research track, and scores fit with a fixed deterministic rubric. No Gemini or login flow is involved.
+              MentorFit builds its main dataset from OpenAlex, ORCID, Semantic Scholar, and public faculty or lab pages, then ranks those researchers with the same rubric used for pasted URLs. Google Scholar stays optional as manual input or enrichment.
             </p>
+          </div>
+
+          <div>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Discovery Sources</h2>
+            {discoveryMeta ? (
+              <div className="space-y-3">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Built {discoveryMeta.resultCount} ranked profiles from {discoveryMeta.candidateCount} OpenAlex candidates.
+                </p>
+                <div className="space-y-2">
+                  {discoveryMeta.sources.map((source) => (
+                    <div key={source.source}>
+                      <SourceStatusRow source={source} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Discovery metadata will appear after MentorFit finishes building the first academic-source pool.
+              </p>
+            )}
           </div>
 
           <nav className="mt-auto space-y-1">
@@ -162,7 +231,9 @@ export function Dashboard({
                   {activeTab === 'ranked' ? `Ranked Matches (${professors.length})` : 'Side-by-Side Comparison'}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Paste a Scholar, ORCID, lab, or faculty page URL to generate a new mentor profile.
+                  {activeTab === 'ranked'
+                    ? 'Your ranked pool comes from live academic sources matched to your profile. Click Compare on any card to build a side-by-side shortlist.'
+                    : 'Review your selected professors side-by-side, then return to ranked results to add or remove people from the comparison set.'}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -189,8 +260,39 @@ export function Dashboard({
                   className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6"
                 >
                   <div className="space-y-4">
+                    <div className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold">Compare up to 4 professors</p>
+                          <p className="text-xs leading-relaxed text-muted-foreground mt-1">
+                            Use the Compare button on any result card. The analysis panel on the right follows your latest selected professor.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tight">
+                            {selectedCount} Selected
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={selectedCount === 0}
+                            onClick={() => setSelectedProfIds([])}
+                          >
+                            Clear Selection
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={selectedCount < 2}
+                            onClick={() => setActiveTab('compare')}
+                          >
+                            Compare Selected
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
                     {professors.length === 0 ? (
-                      <EmptyState />
+                      <EmptyState isDiscoveringRecommendations={isDiscoveringRecommendations} />
                     ) : (
                       sortedMatches.map((match, index) => {
                         const professor = professors.find((entry) => entry.id === match.professorId);
@@ -287,6 +389,18 @@ function WeightRow({ label, value }: { label: string; value: number }) {
   );
 }
 
+function SourceStatusRow({ source }: { source: DiscoverySourceMeta }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] font-semibold">{formatSourceLabel(source.source)}</span>
+        <Badge className={sourceStatusClassName(source.status)}>{source.status}</Badge>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{source.detail}</p>
+    </div>
+  );
+}
+
 function DetailPanel({ match, professor }: { match: MatchResult; professor: Professor }) {
   const confidenceLabel = match.confidence >= 0.8 ? 'High confidence' : match.confidence >= 0.6 ? 'Moderate confidence' : 'Low confidence';
 
@@ -295,13 +409,20 @@ function DetailPanel({ match, professor }: { match: MatchResult; professor: Prof
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-bold text-sm">Analysis: {professor.fullName}</h3>
-          <p className="text-xs text-muted-foreground mt-1">{professor.institution} • {professor.department}</p>
+          <p className="text-xs text-muted-foreground mt-1">{[professor.institution, professor.department, professor.country].filter(Boolean).join(' • ')}</p>
         </div>
-        {professor.sourceType && (
-          <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tight">
-            {professor.sourceType}
-          </Badge>
-        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          {professor.profileOrigin === 'discovery' ? (
+            <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-tight">
+              Academic Dataset
+            </Badge>
+          ) : null}
+          {professor.sourceType ? (
+            <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tight">
+              {professor.sourceType}
+            </Badge>
+          ) : null}
+        </div>
       </div>
 
       <div className="aspect-square bg-muted/40 rounded-lg flex items-center justify-center border border-border/50">
@@ -323,12 +444,15 @@ function DetailPanel({ match, professor }: { match: MatchResult; professor: Prof
       )}
 
       {professor.highlights?.length ? (
-        <div className="flex flex-wrap gap-2">
-          {professor.highlights.map((highlight) => (
-            <Badge key={highlight} variant="secondary" className="text-[11px] leading-relaxed whitespace-normal">
-              {highlight}
-            </Badge>
-          ))}
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Profile Signals</p>
+          <div className="space-y-2">
+            {professor.highlights.map((highlight) => (
+              <div key={highlight} className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs leading-relaxed text-foreground break-words">{highlight}</p>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -340,7 +464,7 @@ function DetailPanel({ match, professor }: { match: MatchResult; professor: Prof
   );
 }
 
-function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
+function SidebarItem({ icon, label, active, onClick }: { icon: ReactNode; label: string; active?: boolean; onClick?: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -352,16 +476,47 @@ function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode; 
   );
 }
 
-function EmptyState() {
+function EmptyState({ isDiscoveringRecommendations }: { isDiscoveringRecommendations: boolean }) {
   return (
     <div className="text-center py-24 border border-dashed border-border rounded-lg bg-card">
       <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-        <Search className="w-6 h-6 text-muted-foreground" />
+        {isDiscoveringRecommendations ? <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" /> : <Search className="w-6 h-6 text-muted-foreground" />}
       </div>
-      <h3 className="text-lg font-bold mb-1">No profiles added</h3>
+      <h3 className="text-lg font-bold mb-1">
+        {isDiscoveringRecommendations ? 'Building researcher pool' : 'No profiles available'}
+      </h3>
       <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-        Paste a public link above to start your mentor match analysis. ORCID and faculty pages usually produce the richest preview.
+        {isDiscoveringRecommendations
+          ? 'MentorFit is fetching candidates from OpenAlex, ORCID, Semantic Scholar, and public faculty or lab pages.'
+          : 'No academic-source candidates are loaded in this session yet. Refresh the pool or paste a public profile URL above.'}
       </p>
     </div>
   );
+}
+
+function formatSourceLabel(source: DiscoverySourceMeta['source']) {
+  switch (source) {
+    case 'openAlex':
+      return 'OpenAlex';
+    case 'orcid':
+      return 'ORCID';
+    case 'semanticScholar':
+      return 'Semantic Scholar';
+    case 'facultyPages':
+      return 'Faculty Pages';
+    default:
+      return source;
+  }
+}
+
+function sourceStatusClassName(status: DiscoverySourceMeta['status']) {
+  if (status === 'success') {
+    return 'border-transparent bg-success/15 text-success hover:bg-success/15';
+  }
+
+  if (status === 'degraded') {
+    return 'border-transparent bg-amber-500/15 text-amber-700 hover:bg-amber-500/15 dark:text-amber-300';
+  }
+
+  return 'border-transparent bg-secondary text-muted-foreground hover:bg-secondary';
 }

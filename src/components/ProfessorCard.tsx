@@ -1,7 +1,7 @@
-import React from 'react';
+import type { MouseEvent } from 'react';
 import { Professor, MatchResult } from '@/types';
 import { Badge } from "@/components/ui/badge";
-import { Trash2 } from 'lucide-react';
+import { CheckCircle2, GitCompareArrows, Trash2 } from 'lucide-react';
 
 export function ProfessorCard({ 
   professor, 
@@ -16,7 +16,7 @@ export function ProfessorCard({
   rank: number,
   isSelected: boolean,
   onSelect: () => void,
-  onDelete: (e: React.MouseEvent) => void
+  onDelete: (e: MouseEvent) => void
 }) {
   return (
     <div 
@@ -38,12 +38,19 @@ export function ProfessorCard({
         <div className="flex justify-between items-start mb-1">
           <div>
             <h3 className="font-bold text-base text-foreground">{professor.fullName}</h3>
-            <p className="text-xs text-muted-foreground">{professor.institution} • {professor.department}</p>
-            {professor.sourceType ? (
-              <Badge variant="outline" className="mt-2 text-[10px] font-bold uppercase tracking-tight">
-                {professor.sourceType}
-              </Badge>
-            ) : null}
+            <p className="text-xs text-muted-foreground">{[professor.institution, professor.department, professor.country].filter(Boolean).join(' • ')}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {professor.profileOrigin === 'discovery' ? (
+                <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-tight">
+                  Academic Dataset
+                </Badge>
+              ) : null}
+              {professor.sourceType ? (
+                <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tight">
+                  {professor.sourceType}
+                </Badge>
+              ) : null}
+            </div>
           </div>
           <div className="text-right">
             <p className="text-xl font-extrabold text-accent leading-none">{match.overallScore}</p>
@@ -64,6 +71,27 @@ export function ProfessorCard({
           <ScoreBadge label="Methods" value={match.subscores.methods} />
           <ScoreBadge label="Recency" value={match.subscores.activity > 80 ? 'High' : match.subscores.activity > 50 ? 'Med' : 'Low'} />
           <ScoreBadge label="Confidence" value={`${Math.round(match.confidence * 100)}%`} />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="text-[11px] text-muted-foreground">
+            {isSelected ? 'Selected for comparison' : 'Select this card to compare'}
+          </span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect();
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+              isSelected
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border text-muted-foreground hover:border-accent/40 hover:text-foreground'
+            }`}
+          >
+            {isSelected ? <CheckCircle2 className="w-3.5 h-3.5" /> : <GitCompareArrows className="w-3.5 h-3.5" />}
+            {isSelected ? 'Selected' : 'Compare'}
+          </button>
         </div>
       </div>
     </div>
