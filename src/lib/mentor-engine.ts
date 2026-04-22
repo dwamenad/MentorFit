@@ -30,7 +30,7 @@ const STOPWORDS = new Set([
   'department', 'dept', 'profile', 'staff', 'user', 'home', 'research', 'group', 'page',
 ]);
 
-const RESEARCH_TRACKS: ResearchTrack[] = [
+export const RESEARCH_TRACKS: ResearchTrack[] = [
   {
     id: 'cognitive-neuroscience',
     label: 'Cognitive Neuroscience',
@@ -102,6 +102,18 @@ const RESEARCH_TRACKS: ResearchTrack[] = [
     publicationNouns: ['student motivation', 'classroom climate', 'instructional design', 'equity in learning', 'teacher development'],
     venues: ['American Educational Research Journal', 'Learning and Instruction', 'Educational Psychologist', 'Journal of Educational Psychology'],
     mentorshipSignals: ['Builds collaborative, practice-facing research projects with school and community partners.', 'Mentors students who work across qualitative and quantitative designs.'],
+  },
+  {
+    id: 'neuroeconomics',
+    label: 'Neuroeconomics',
+    department: 'Economics and Neuroscience',
+    keywords: ['decision', 'reward', 'value', 'risk', 'choice', 'emotion', 'incentives', 'altruism'],
+    methods: ['fMRI', 'Computational Modeling', 'Survey Methods', 'Neuroimaging', 'Longitudinal Analysis'],
+    summary: 'Studies how the brain computes value, uncertainty, self-control, and social choice using tools from economics, psychology, and neuroscience.',
+    bioLead: 'Builds an interdisciplinary research program around reward, valuation, risk, and strategic or social decision-making.',
+    publicationNouns: ['value-based choice', 'reward anticipation', 'social preferences', 'self-control', 'risk and ambiguity'],
+    venues: ['Nature Reviews Neuroscience', 'Neuron', 'Journal of Neuroscience', 'Journal of Economic Behavior & Organization'],
+    mentorshipSignals: ['Often mentors students across economics, psychology, and neuroscience training paths.', 'Publishes collaborative work that links behavioral experiments with brain and computational measures.'],
   },
 ];
 
@@ -316,8 +328,16 @@ function scoreOverall(profile: StudentProfile, subscores: MatchResult['subscores
   return Math.round(totals.weighted / Math.max(totals.totalWeight, 1));
 }
 
-function buildLimitation(preview?: SourcePreview) {
-  if (!preview?.fetched) {
+function buildLimitation(professor: Professor, preview?: SourcePreview) {
+  const sourceFetched = preview?.fetched ?? professor.sourceFetched ?? false;
+
+  if (professor.profileOrigin === 'discovery') {
+    return sourceFetched
+      ? 'This profile is assembled from OpenAlex, ORCID, Semantic Scholar, and faculty or lab page metadata. Mentorship and lab-culture signals still need manual validation.'
+      : 'This profile is assembled from OpenAlex, ORCID, and other public metadata, but no readable faculty or lab page was available during ingest.';
+  }
+
+  if (!sourceFetched) {
     return 'This profile is based mostly on link structure and student-side context because the page did not return readable metadata during ingest.';
   }
 
@@ -352,9 +372,11 @@ export function buildProfessorProfile(urlInput: string, preview: SourcePreview |
     fullName,
     institution,
     department: track.department,
+    profileOrigin: 'user',
     sourceType,
     sourceConfidence: clamp((preview?.sourceReliability ?? 0.4) + (preview?.fetched ? 0.2 : 0), 0.25, 0.95),
     sourceSummary: preview?.fetchNote ?? `${sourceType} parsed with a deterministic topic and methods model.`,
+    sourceFetched: preview?.fetched ?? false,
     highlights,
     urls: {
       scholar: sourceType === 'Google Scholar' ? urlInput : undefined,
@@ -368,6 +390,7 @@ export function buildProfessorProfile(urlInput: string, preview: SourcePreview |
 }
 
 export function computeMatch(studentProfile: StudentProfile, professor: Professor, preview?: SourcePreview): MatchResult {
+  const sourceFetched = preview?.fetched ?? professor.sourceFetched ?? false;
   const studentTokens = tokenize(buildTextPool([
     studentProfile.field,
     studentProfile.researchInterests,
@@ -403,8 +426,8 @@ export function computeMatch(studentProfile: StudentProfile, professor: Professo
   subscores.careerAlignment = scoreCareerAlignment(studentProfile.careerGoal, subscores);
 
   const overallScore = scoreOverall(studentProfile, subscores);
-  const confidence = clamp(((professor.sourceConfidence ?? 0.5) * 0.45) + (professor.publications.length / 8) * 0.25 + (preview?.fetched ? 0.2 : 0.05) + (overlappingMethods.length > 0 ? 0.1 : 0.04), 0.35, 0.97);
-  const limitation = buildLimitation(preview);
+  const confidence = clamp(((professor.sourceConfidence ?? 0.5) * 0.45) + (professor.publications.length / 8) * 0.25 + (sourceFetched ? 0.2 : 0.05) + (overlappingMethods.length > 0 ? 0.1 : 0.04), 0.35, 0.97);
+  const limitation = buildLimitation(professor, preview);
 
   const match: MatchResult = {
     professorId: professor.id,
